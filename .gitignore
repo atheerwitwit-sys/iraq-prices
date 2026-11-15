@@ -1,0 +1,21 @@
+# private / local only
+collector/browser_profile/
+collector/prices.db
+collector/logs/
+inbox/*.html
+inbox/*.htm
+inbox/*.mhtml
+inbox/*.mht
+inbox/*_files/
+inbox/done/
+.venv/
+__pycache__/
+*.pyc
+setup_log.txt
+run_log.txt
+git_log.txt
+# old files from the first version (not used anymore)
+collector/browser.py
+collector/facebook.py
+collector/instagram.py
+collector/login.py

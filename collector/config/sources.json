@@ -1,0 +1,40 @@
+{
+  "websites": [
+    {
+      "name": "ترند موبايل (Trend)",
+      "url": "https://trendmiq.com"
+    }
+  ],
+  "discovery": {
+    "enabled": true,
+    "max_new_sources_per_day": 5,
+    "web_queries": [
+      "متجر موبايلات العراق اونلاين",
+      "اسعار الموبايلات في العراق اليوم",
+      "اسعار راوترات العراق"
+    ]
+  },
+  "limits": {},
+  "facebook_pages_to_save_daily": [
+    {
+      "name": "برج العرب زيونة",
+      "url": "https://www.facebook.com/BurjAlArabzayona"
+    },
+    {
+      "name": "Trendmiq",
+      "url": "https://www.facebook.com/Trendmiq"
+    },
+    {
+      "name": "Smart Store IQ",
+      "url": "https://www.facebook.com/Smart.Store.iq"
+    },
+    {
+      "name": "T Mobile Center",
+      "url": "https://www.facebook.com/tmobilecenter1"
+    },
+    {
+      "name": "عالم القلعة",
+      "url": "https://www.facebook.com/Aalam.AlQalaa"
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>أسعار الموبايلات والراوترات في العراق</title>
+<meta name="description" content="أسعار الموبايلات والراوترات اليومية من محلات وصفحات داخل العراق، مع رابط المصدر.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <h1>أسعار الموبايلات والراوترات <span>في العراق</span></h1>
+    <p class="sub">تتحدث يومياً من صفحات فيسبوك وإنستكرام ومواقع المحلات العراقية. كل سعر وياه رابط المنشور.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="controls" aria-label="بحث وفلترة">
+    <input id="q" type="search" placeholder="ابحث: ايفون 15، A55، TP-Link…" autocomplete="off">
+    <div class="row">
+      <label>اليوم <select id="day"></select></label>
+      <label>النوع
+        <select id="kind">
+          <option value="">الكل</option>
+          <option value="phone">موبايل</option>
+          <option value="tablet">تابلت</option>
+          <option value="router">راوتر</option>
+        </select>
+      </label>
+      <label>العملة
+        <select id="cur">
+          <option value="">الكل</option>
+          <option value="IQD">دينار</option>
+          <option value="USD">دولار</option>
+          <option value="?">غير محددة</option>
+        </select>
+      </label>
+      <label>الحالة
+        <select id="cond">
+          <option value="">الكل</option>
+          <option value="جديد">جديد</option>
+          <option value="مستعمل">مستعمل</option>
+        </select>
+      </label>
+      <label>الشركة <select id="brand"><option value="">الكل</option></select></label>
+      <label>الترتيب
+        <select id="sort">
+          <option value="device">اسم الجهاز</option>
+          <option value="asc">الأرخص أولاً</option>
+          <option value="desc">الأغلى أولاً</option>
+        </select>
+      </label>
+      <label class="chk"><input id="cheapest" type="checkbox"> أرخص سعر لكل جهاز بس</label>
+    </div>
+  </section>
+
+  <p id="summary" class="summary" aria-live="polite"></p>
+  <div id="list" class="list"></div>
+  <p id="empty" class="empty" hidden>ماكو نتائج تطابق البحث.</p>
+</main>
+
+<footer class="wrap foot">
+  الأسعار مأخوذة كما هي من المنشورات وممكن تتغير بأي وقت. تأكد من المحل قبل الشراء.
+</footer>
+
+<template id="card">
+  <article class="card">
+    <div class="head">
+      <h2 class="name"></h2>
+      <span class="kind"></span>
+    </div>
+    <ul class="specs"></ul>
+    <div class="price-row">
+      <strong class="price"></strong>
+      <span class="cond"></span>
+    </div>
+    <div class="src">
+      <span class="srcname"></span>
+      <a class="link" target="_blank" rel="noopener">فتح المنشور ↗</a>
+    </div>
+    <details class="excerpt"><summary>نص المنشور</summary><p></p></details>
+  </article>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>
