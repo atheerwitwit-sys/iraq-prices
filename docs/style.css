@@ -17,6 +17,11 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Cairo"
 .sub { margin: 6px 0 0; opacity: .85; font-size: .95rem; }
 
 .controls { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin: -14px 0 14px; position: sticky; top: 8px; z-index: 5; box-shadow: 0 4px 18px rgba(0,0,0,.06); }
+.tabs { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; }
+.tabs button { font: inherit; font-weight: 600; font-size: .95rem; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; white-space: nowrap; }
+.tabs button span { font-weight: 400; font-size: .8rem; color: var(--muted); margin-inline-start: 4px; }
+.tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.tabs button[aria-selected="true"] span { color: var(--accent-ink); opacity: .85; }
 #q { width: 100%; font: inherit; font-size: 1.05rem; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); }
 .row { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; align-items: center; }
 .row label { font-size: .85rem; color: var(--muted); display: flex; gap: 6px; align-items: center; }

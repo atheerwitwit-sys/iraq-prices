@@ -15,7 +15,7 @@
     .replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
     .replace(/ايفون/g, "iphone").replace(/سامسونج|سامسونك/g, "samsung").replace(/كالكسي|جالكسي/g, "galaxy")
     .replace(/شاومي/g, "xiaomi").replace(/ريدمي/g, "redmi").replace(/برو/g, "pro").replace(/ماكس/g, "max")
-    .replace(/الترا/g, "ultra").replace(/راوتر/g, "router").replace(/\s+/g, " ").trim();
+    .replace(/الترا/g, "ultra").replace(/راوترات|راوتر/g, "router").replace(/موبايلات|هواتف/g, "موبايل").replace(/\s+/g, " ").trim();
 
   async function loadDay(day) {
     const file = day ? `data/${day}.json` : "data/latest.json";
@@ -23,7 +23,7 @@
       const r = await fetch(file, { cache: "no-store" });
       const d = await r.json();
       items = d.items || [];
-      items.forEach((it) => (it._s = norm([it.device, it.brand, (it.specs || []).join(" "), it.source_name].join(" "))));
+      items.forEach((it) => (it._s = norm([it.device, it.brand, (it.specs || []).join(" "), it.source_name, it.kind, KIND[it.kind], it.kind === "tablet" ? "تاب ipad" : ""].join(" "))));
       const brands = [...new Set(items.map((i) => i.brand).filter(Boolean))].sort();
       const sel = $("brand"), cur = sel.value;
       sel.innerHTML = '<option value="">الكل</option>' + brands.map((b) => `<option>${b}</option>`).join("");
@@ -40,9 +40,16 @@
     const q = norm($("q").value);
     const terms = q ? q.split(" ") : [];
     const kind = $("kind").value, cur = $("cur").value, cond = $("cond").value, brand = $("brand").value;
-    let rows = items.filter((it) =>
-      (!kind || it.kind === kind) && (!cur || it.currency === cur) && (!cond || it.condition === cond) &&
+    const base = items.filter((it) =>
+      (!cur || it.currency === cur) && (!cond || it.condition === cond) &&
       (!brand || it.brand === brand) && terms.every((t) => it._s.includes(t)));
+    // عدد كل تبويب حسب البحث والفلاتر الحالية
+    document.querySelectorAll(".tabs button").forEach((b) => {
+      const k = b.dataset.kind;
+      b.querySelector("span").textContent = (k ? base.filter((it) => it.kind === k).length : base.length).toLocaleString("en-US");
+      b.setAttribute("aria-selected", String(k === kind));
+    });
+    let rows = base.filter((it) => !kind || it.kind === kind);
 
     let othersCount = new Map();
     if ($("cheapest").checked) {
@@ -94,7 +101,13 @@
     sel.innerHTML = days.length ? days.map((d, i) => `<option value="${d}">${i === 0 ? "اليوم " : ""}${d}</option>`).join("")
                                 : '<option value="">آخر تحديث</option>';
     sel.onchange = () => loadDay(sel.value);
-    ["q", "kind", "cur", "cond", "brand", "sort", "cheapest"].forEach((id) => $(id).addEventListener("input", render));
+    document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => {
+      $("kind").value = b.dataset.kind;
+      try { localStorage.setItem("kind", b.dataset.kind); } catch (e) {}
+      render();
+    }));
+    try { $("kind").value = localStorage.getItem("kind") || ""; } catch (e) {}
+    ["q", "cur", "cond", "brand", "sort", "cheapest"].forEach((id) => $(id).addEventListener("input", render));
     await loadDay(days[0] || "");
   }
   init();

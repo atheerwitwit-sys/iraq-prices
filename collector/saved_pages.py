@@ -117,6 +117,41 @@ def extract_posts(html: str):
     return title or url, url, kind, posts
 
 
+def store_tiles(html: str, url: str):
+    """صفحات متاجر محفوظة (مثل مسواگ): بطاقات منتجات بيها اسم وسعر."""
+    from bs4 import BeautifulSoup
+    from urllib.parse import urljoin
+    from websites import _make_item, product_tiles
+    from parser import find_prices
+    soup = BeautifulSoup(html, "html.parser")
+    cards = soup.select("article.product-grid-card")
+    if not cards:
+        return product_tiles(html, url) if "product" in html[:200000].lower() else []
+    out = []
+    for c in cards:
+        title = c.get("title") or c.get_text(" ", strip=True)[:200]
+        # مسواگ يكتب الاسم عربي وبعده إنكليزي، ناخذ الإنكليزي لأنه أوضح
+        latin = re.search(r"[A-Za-z][A-Za-z0-9 +\-()/.]{5,}$", title.strip())
+        if latin:
+            title = latin.group(0)
+        price_el = None
+        for sp in c.find_all("span", class_=re.compile("font-bold")):
+            if "د.ع" in sp.get_text() or "$" in sp.get_text():
+                price_el = sp
+                break
+        if not price_el:
+            continue
+        prices = find_prices(price_el.get_text(" ", strip=True))
+        if not prices:
+            continue
+        a = c.find_parent("a", href=True) or c.find("a", href=True)
+        link = urljoin("https://miswag.com/", a["href"]).split("?")[0] if a else url
+        r = _make_item(title, "", prices[0].amount, prices[0].currency, link)
+        if r:
+            out.append(r)
+    return out
+
+
 def process_inbox(con, parse_post, save_items, log=print):
     INBOX.mkdir(exist_ok=True)
     done = INBOX / "done" / date.today().isoformat()
@@ -128,6 +163,18 @@ def process_inbox(con, parse_post, save_items, log=print):
         try:
             html, get_image = read_file(f)
             name, url, kind, posts = extract_posts(html)
+            if not name or name.strip().lower() in ("facebook", "instagram", "فيسبوك"):
+                name = f.stem  # اسم الملف اللي حفظته (مثل: برج العرب)
+            is_store = "product-grid-card" in html or (url and "facebook.com" not in url and "instagram.com" not in url
+                                                         and not re.search(r'role="article"', html))
+            if is_store:
+                name = name.split("—")[0].strip()
+                tiles = store_tiles(html, url)
+                if tiles:
+                    n = sum(save_items(con, [it], name, "website", link) for it, link in tiles)
+                    log(f"  صفحة متجر محفوظة {name}: {n} سعر")
+                    total += n
+                    posts = []
             n, n_img, seen = 0, 0, set()
             for p in posts:
                 items = parse_post(p["text"]) if p["text"] else []
@@ -146,6 +193,13 @@ def process_inbox(con, parse_post, save_items, log=print):
                     if not txt:
                         continue
                     n_img += 1
+                    try:  # نحفظ نص الصورة حتى نراجع القراءة إذا صار غلط
+                        dbg = Path(__file__).resolve().parent / "logs" / "ocr"
+                        dbg.mkdir(parents=True, exist_ok=True)
+                        (dbg / f"{date.today().isoformat()}_{h[:10]}.txt").write_text(
+                            f"{name}\n{p['link']}\n---\n{txt}", encoding="utf-8")
+                    except OSError:
+                        pass
                     # نص المنشور (أول سطرين) يساعد إذا اسم الجهاز مكتوب بالمنشور مو بالصورة
                     img_items = parse_post(txt, ocr=True)
                     n += save_items(con, img_items, name, kind, p["link"], "[من الصورة] " + txt[:380])

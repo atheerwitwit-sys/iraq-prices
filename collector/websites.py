@@ -55,7 +55,7 @@ def _make_item(title: str, desc: str, amount: float, currency: str, url: str):
         device=device,
         brand=brand, kind=kind, specs=extract_specs(full, kind),
         condition=detect_condition(full), price=amount, currency=currency,
-        price_text=f"{amount:g} {currency}", line=normalize(title)[:300],
+        price_text=f"{amount:,.0f} {currency}" if amount == int(amount) else f"{amount:,.2f} {currency}", line=normalize(title)[:300],
     ), url
 
 

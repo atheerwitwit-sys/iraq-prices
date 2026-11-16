@@ -80,8 +80,8 @@ PRICE_PATTERNS = [
 STORAGE_RE = re.compile(r"(?<![\d/])(\d{2,4})\s*(?:gb|g\b|جيجا|جيكا|كيكا|كيگا|غيغا|giga)|(\d)\s*(?:tb|تيرا)", re.I)
 RAM_STORAGE_RE = re.compile(r"(?<!\d)(\d{1,2})\s*(?:gb|جيجا|كيكا)?\s*[/+\-–]\s*(\d{2,4})(?!\d)", re.I)
 RAM_RE = re.compile(r"(?:رام|ram)\s*(\d{1,2})|(\d{1,2})\s*(?:gb)?\s*(?:رام|ram)", re.I)
-ROUTER_SPEED_RE = re.compile(r"(?:ax|ac|n|be)\s?\d{3,5}|\d{3,5}\s?mbps|wi-?fi\s?[4567]|dual\s?band|دوال باند|ثنائي الموجة", re.I)
-CONDITION_USED = re.compile(r"مستعمل|مستخدم|used|نظيف|كسر|شبه جديد|بطارية\s*\d", re.I)
+ROUTER_SPEED_RE = re.compile(r"(?<![a-z])(?:ax|ac|n|be)\s?\d{3,5}|\d{3,5}\s?mbps|wi-?fi\s?[4567]|dual\s?band|دوال باند|ثنائي الموجة", re.I)
+CONDITION_USED = re.compile(r"(?<![\w\u0600-\u06FF])(?:مستعمل|مستعمله|مستعملة|مستخدم|used|شبه جديد|اوبن بوكس|open box)(?![\u0600-\u06FF])|بطارية\s*\d{2}\s*%|صحة البطارية", re.I)
 CONDITION_NEW = re.compile(r"جديد|new|مسكر|سيل|sealed|كارتونة|بالكارتون", re.I)
 # منتجات مو موبايل ولا راوتر (حتى لو بيها اسم شركة مثل Huawei FreeBuds)
 NON_DEVICE_RE = re.compile(
@@ -99,7 +99,7 @@ NON_DEVICE_RE = re.compile(
 )
 # كلمات تأكد إن المنتج مو جهاز حتى لو بيه "WIFI" (لوحات أم، شاشات، ...)
 STRONG_NON_DEVICE_RE = re.compile(
-    r"motherboard|ماذربورد|\b[bhzx][4-9]\d0[a-z]?\b|hdmi|monitor|odyssey|\bls\d{2}|\bte[gf]\d|magsafe|بطارية خارجية|kvm|geforce|rtx|splitter|cooler|creator|\brog\b|\btuf\b",
+    r"pixels|tapo c\d|camera|كاميرا|novastar|led display|ethernet ports|motherboard|ماذربورد|\b[bhzx][4-9]\d0[a-z]?\b|hdmi|monitor|odyssey|\bls\d{2}|\bte[gf]\d|magsafe|بطارية خارجية|kvm|geforce|rtx|splitter|cooler|creator|\brog\b|\btuf\b",
     re.I,
 )
 TABLET_RE = re.compile(r"\bpad\b|megapad|\btab\b|tablet|تابلت|ايباد|ipad", re.I)
@@ -312,6 +312,46 @@ def detect_condition(text: str) -> str:
         return "جديد"
     return ""
 
+GRID_PRICE_RE = re.compile(r"(?<![\d,.])(\d{1,3}(?:[,.]\d{3}){1,2})(?![\d])\s*(iqd|د\.?\s?ع|\$|usd)?", re.I)
+GRID_STORAGE_RE = re.compile(r"(?<!\d)(\d{2,4})\s*(?:gb|g\b|جيجا|كيكا)|(?<!\d)(\d)\s*(?:tb|تيرا)", re.I)
+
+
+def parse_ocr_grid(lines: list[str]) -> list[Item]:
+    """بوسترات جدول: اسم الجهاز، وتحته صف أسعار وصف سعات (256GB 512GB 1TB ...).
+    نربط كل سعر بالسعة اللي بنفس الترتيب. الأسعار الصفرية (0,000,000) = غير متوفر."""
+    items: list[Item] = []
+    blocks, cur = [], None
+    for line in lines:
+        m, brand, kind = detect_brand(line)
+        if brand and not GRID_PRICE_RE.search(line):
+            cur = {"line": line, "m": m, "brand": brand, "kind": kind, "prices": [], "storages": []}
+            blocks.append(cur)
+            continue
+        if cur is None:
+            continue
+        for g in GRID_PRICE_RE.finditer(line):
+            amount = float(re.sub(r"[,.]", "", g.group(1)))
+            unit = (g.group(2) or "").lower()
+            cur["prices"].append((amount, "USD" if unit in ("$", "usd") else "IQD" if unit else "?"))
+        for g in GRID_STORAGE_RE.finditer(line):
+            cur["storages"].append(f"{g.group(1)}GB" if g.group(1) else f"{g.group(2)}TB")
+    for b in blocks:
+        pr, st = b["prices"], b["storages"]
+        if len(pr) < 2 or len(pr) != len(st):
+            continue
+        name = re.sub(r"(\s+[0oO©•●.]+)+$", "", extract_model(b["line"], b["m"], b["brand"]))
+        if not valid_name(name, b["brand"]):
+            continue
+        cur_known = {c for _, c in pr if c != "?"}
+        for (amount, c), storage in zip(pr, st):
+            c = c if c != "?" else (next(iter(cur_known)) if len(cur_known) == 1 else "?")
+            if amount == 0 or c == "?" or not price_ok(b["kind"] or "phone", amount, c):
+                continue
+            items.append(Item(device=name, brand=b["brand"], kind=b["kind"] or "phone", specs=[storage],
+                              condition=detect_condition(b["line"]), price=amount, currency=c,
+                              price_text=f"{amount:,.0f} {c}", line=b["line"][:300]))
+    return items
+
 
 def parse_post(text: str, ocr: bool = False, strict: bool = False) -> list[Item]:
     """Parse a whole post. A post can list many devices, one per line.
@@ -328,6 +368,11 @@ def parse_post(text: str, ocr: bool = False, strict: bool = False) -> list[Item]
         # long single-line posts: split on bullets/emojis
         lines = [l.strip() for l in re.split(r"[•✅🔥⭐📱👈➖▪️◾]|\s{3,}", lines[0]) if l.strip()]
 
+    if ocr:
+        g = parse_ocr_grid(lines)
+        if g:
+            return g
+
     whole_condition = detect_condition(text)
     brand_lines = sum(1 for l in lines if detect_brand(l)[2])
     items: list[Item] = []
@@ -336,7 +381,7 @@ def parse_post(text: str, ocr: bool = False, strict: bool = False) -> list[Item]
     # المنشورات: نسمح بسطرين كلام بيناتهم.
     max_gap = 0 if strict else 2
     gap = 0
-    for line in lines:
+    for idx, line in enumerate(lines):
         m, brand, kind = detect_brand(line)
         prices = find_prices(line)
         if strict:
@@ -362,10 +407,18 @@ def parse_post(text: str, ocr: bool = False, strict: bool = False) -> list[Item]
             continue
         if not name or (kind == "router" and not brand and len(name) < 3):
             name = name or "راوتر"
+        if ocr:
+            name = re.sub(r"(\s+[0oO©•●.]+)+$", "", name)
         specs = extract_specs(ctx_line, kind)
+        if ocr and idx + 1 < len(lines) and not any("GB" in x or "TB" in x for x in specs):
+            # بالبوستر السعة تنكتب تحت السعر
+            nxt = lines[idx + 1]
+            if STORAGE_RE.search(nxt) and not find_prices(nxt):
+                specs = extract_specs(ctx_line + " " + nxt, kind)
         cond = detect_condition(ctx_line)
         if not cond and brand_lines <= 1:
             cond = whole_condition  # منشور لجهاز واحد: الحالة ممكن تكون بسطر ثاني
+        prices = [p for p in prices if p.amount > 0]
         if ocr and len(prices) > 1 and len({p.currency for p in prices}) == 1:
             # بالبوسترات: السعر القديم المشطوب جنب السعر الجديد، ناخذ الأقل
             prices = [min(prices, key=lambda p: p.amount)]

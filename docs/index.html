@@ -19,17 +19,16 @@
 
 <main class="wrap">
   <section class="controls" aria-label="بحث وفلترة">
+    <nav class="tabs" role="tablist" aria-label="نوع الجهاز">
+      <button role="tab" data-kind="" aria-selected="true">الكل <span></span></button>
+      <button role="tab" data-kind="phone">موبايلات <span></span></button>
+      <button role="tab" data-kind="tablet">تابلت <span></span></button>
+      <button role="tab" data-kind="router">راوترات <span></span></button>
+    </nav>
+    <input id="kind" type="hidden" value="">
     <input id="q" type="search" placeholder="ابحث: ايفون 15، A55، TP-Link…" autocomplete="off">
     <div class="row">
       <label>اليوم <select id="day"></select></label>
-      <label>النوع
-        <select id="kind">
-          <option value="">الكل</option>
-          <option value="phone">موبايل</option>
-          <option value="tablet">تابلت</option>
-          <option value="router">راوتر</option>
-        </select>
-      </label>
       <label>العملة
         <select id="cur">
           <option value="">الكل</option>

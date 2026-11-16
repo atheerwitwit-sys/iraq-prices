@@ -14,6 +14,7 @@ import sys
 import time
 import traceback
 from datetime import date
+from functools import partial
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -42,14 +43,14 @@ def load_config():
     return cfg, disc
 
 
-def run_websites(con, sites):
+def run_websites(con, sites, save):
     total = 0
     for s in sites:
         try:
             res = scrape_site(s["url"])
             n = 0
             for item, link in res:
-                n += store.save_items(con, [item], s["name"], "website", link)
+                n += save(con, [item], s["name"], "website", link)
             log(f"  موقع {s['name']}: {n} سعر")
             total += n
         except Exception as e:
@@ -63,7 +64,7 @@ def publish():
         log("  (ما مربوط بـ GitHub، تخطيت النشر)")
         return
     day = date.today().isoformat()
-    cmds = [["git", "add", "docs/data", "collector/config/discovered.json"],
+    cmds = [["git", "add", "docs", "collector"],
             ["git", "commit", "-m", f"أسعار {day}"],
             ["git", "pull", "--rebase", "--autostash"],
             ["git", "push"]]
@@ -83,9 +84,12 @@ def main():
     if a.scheduled:
         time.sleep(random.uniform(0, 45 * 60))
 
+    # تاريخ التشغيل يتثبت من البداية، حتى لو التشغيل عبر نص الليل كل الأسعار تنحسب لنفس اليوم
+    day = date.today().isoformat()
+    save = partial(store.save_items, day=day)
     cfg, disc = load_config()
     con = store.connect()
-    log(f"=== بدء التشغيل {date.today().isoformat()} ===")
+    log(f"=== بدء التشغيل {day} ===")
 
     if cfg["discovery"].get("enabled"):
         added = discover.discover_websites(cfg, disc, cfg["discovery"].get("max_new_sources_per_day", 5))
@@ -93,15 +97,15 @@ def main():
         log(f"  بحث تلقائي مواقع: {added} موقع جديد")
 
     # إذا شغلته أكثر من مرة باليوم، أسعار المواقع تتحدث بدل ما تتكرر
-    con.execute("DELETE FROM prices WHERE day=? AND source_type='website'", (date.today().isoformat(),))
+    con.execute("DELETE FROM prices WHERE day=? AND source_type='website'", (day,))
     con.commit()
-    total = run_websites(con, cfg.get("websites", []) + disc.get("websites", []))
+    total = run_websites(con, cfg.get("websites", []) + disc.get("websites", []), save)
     try:
-        total += process_inbox(con, parse_post, store.save_items, log)
+        total += process_inbox(con, parse_post, save, log)
     except Exception:
         log("  ! خطأ بقراءة الصفحات المحفوظة:\n" + traceback.format_exc())
 
-    n = store.export(con)
+    n = store.export(con, day)
     log(f"=== انتهى: {total} سعر جديد، {n} سعر لليوم بالموقع ===")
     if not a.no_publish:
         publish()
