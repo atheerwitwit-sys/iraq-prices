@@ -146,7 +146,13 @@ def store_tiles(html: str, url: str):
             continue
         a = c.find_parent("a", href=True) or c.find("a", href=True)
         link = urljoin("https://miswag.com/", a["href"]).split("?")[0] if a else url
-        r = _make_item(title, "", prices[0].amount, prices[0].currency, link)
+        im = c.find("img")
+        img = im.get("src", "") if im else ""
+        if img and not img.startswith("http"):
+            # الصفحة المحفوظة تبدل رابط الصورة بملف محلي؛ نرجع لرابط مسواگ الأصلي
+            fn = img.replace("\\", "/").split("/")[-1]
+            img = f"https://cdn.miswag.me/images/thumbs512/{fn}" if re.match(r"^[A-Z0-9]{20,}\.(jpe?g|png|webp)$", fn) else ""
+        r = _make_item(title, "", prices[0].amount, prices[0].currency, link, img)
         if r:
             out.append(r)
     return out
@@ -165,6 +171,9 @@ def process_inbox(con, parse_post, save_items, log=print):
             name, url, kind, posts = extract_posts(html)
             if not name or name.strip().lower() in ("facebook", "instagram", "فيسبوك"):
                 name = f.stem  # اسم الملف اللي حفظته (مثل: برج العرب)
+            # إذا نفس الصفحة انقرت قبل اليوم، نبدل أسعارها بدل ما تتكرر
+            con.execute("DELETE FROM prices WHERE day=? AND source_name IN (?, 'Facebook', 'Instagram') "
+                        "AND source_type IN ('facebook', 'instagram')", (date.today().isoformat(), name))
             is_store = "product-grid-card" in html or (url and "facebook.com" not in url and "instagram.com" not in url
                                                          and not re.search(r'role="article"', html))
             if is_store:

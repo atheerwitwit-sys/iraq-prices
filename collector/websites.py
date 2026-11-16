@@ -34,7 +34,19 @@ def _currency(code: str, amount: float) -> str:
     return "IQD" if amount >= 10_000 else "?"
 
 
-def _make_item(title: str, desc: str, amount: float, currency: str, url: str):
+def _img(src) -> str:
+    """نقبل بس روابط صور كاملة https (مو base64 ولا صور محلية)."""
+    if isinstance(src, list):
+        src = src[0] if src else ""
+    if isinstance(src, dict):
+        src = src.get("url") or src.get("src") or src.get("contentUrl") or ""
+    src = (src or "").strip()
+    if src.startswith("//"):
+        src = "https:" + src
+    return src if re.match(r"https?://", src) and len(src) < 600 else ""
+
+
+def _make_item(title: str, desc: str, amount: float, currency: str, url: str, image: str = ""):
     m, brand, kind = detect_brand(title)
     if not kind:
         return None
@@ -56,6 +68,7 @@ def _make_item(title: str, desc: str, amount: float, currency: str, url: str):
         brand=brand, kind=kind, specs=extract_specs(full, kind),
         condition=detect_condition(full), price=amount, currency=currency,
         price_text=f"{amount:,.0f} {currency}" if amount == int(amount) else f"{amount:,.2f} {currency}", line=normalize(title)[:300],
+        image=_img(image),
     ), url
 
 
@@ -76,7 +89,8 @@ def shopify(base: str):
             except ValueError:
                 continue
             r = _make_item(p.get("title", ""), re.sub("<[^>]+>", " ", p.get("body_html") or "")[:300],
-                           amount, _currency("", amount), urljoin(base, f"/products/{p.get('handle')}"))
+                           amount, _currency("", amount), urljoin(base, f"/products/{p.get('handle')}"),
+                           ((p.get("images") or [{}])[0] or {}).get("src", ""))
             if r:
                 out.append(r)
     return out
@@ -99,7 +113,8 @@ def woocommerce(base: str):
             except (ValueError, TypeError):
                 continue
             r = _make_item(html.unescape(p.get("name", "")), re.sub("<[^>]+>", " ", p.get("short_description") or "")[:300],
-                           amount, _currency(pr.get("currency_code"), amount), p.get("permalink") or base)
+                           amount, _currency(pr.get("currency_code"), amount), p.get("permalink") or base,
+                           ((p.get("images") or [{}])[0] or {}).get("src", ""))
             if r:
                 out.append(r)
     return out
@@ -124,7 +139,9 @@ def trendmiq(base: str = "https://trendmiq.com"):
         for p in rows:
             amount = float(p.get("price") or 0)
             cat = (p.get("category") or {}).get("name", "")
-            r = _make_item(p.get("title", ""), cat, amount, "IQD", f"https://trendmiq.com/products/{p.get('id')}")
+            key = (p.get("preview") or {}).get("key")
+            img = f"https://nbg1.your-objectstorage.com/trend/{key}" if key else ""
+            r = _make_item(p.get("title", ""), cat, amount, "IQD", f"https://trendmiq.com/products/{p.get('id')}", img)
             if r:
                 out.append(r)
         if total and page * 10 >= total:
@@ -160,7 +177,7 @@ def json_ld(page_html: str, url: str):
                     except (ValueError, TypeError):
                         continue
                     r = _make_item(d.get("name", ""), str(d.get("description", ""))[:300], amount,
-                                   _currency(offers.get("priceCurrency"), amount), d.get("url") or url)
+                                   _currency(offers.get("priceCurrency"), amount), d.get("url") or url, d.get("image"))
                     if r:
                         out.append(r)
                 if t == "ItemList":
@@ -218,7 +235,12 @@ def product_tiles(page_html: str, url: str):
         if key in seen:
             continue
         seen.add(key)
-        r = _make_item(title, "", amount, cur, link)
+        img_el = tile.find("img")
+        img = ""
+        if img_el:
+            img = img_el.get("data-src") or img_el.get("data-lazy-src") or img_el.get("src") or ""
+            img = urljoin(url, img) if img and not img.startswith("data:") else ""
+        r = _make_item(title, "", amount, cur, link, img)
         if r:
             out.append(r)
     return out

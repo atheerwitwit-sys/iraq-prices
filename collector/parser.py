@@ -124,6 +124,7 @@ class Item:
     currency: str = ""
     price_text: str = ""
     line: str = ""
+    image: str = ""  # رابط صورة الجهاز من المتجر (إذا موجودة)
 
     def to_dict(self):
         return asdict(self)

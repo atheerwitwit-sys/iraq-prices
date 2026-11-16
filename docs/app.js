@@ -74,6 +74,12 @@
     for (const it of rows.slice(0, 600)) {
       const c = tpl.content.cloneNode(true);
       c.querySelector(".name").textContent = it.device;
+      const th = c.querySelector(".thumb"), im = th.querySelector("img");
+      th.querySelector(".ph").textContent = it.kind === "router" ? "📶" : it.kind === "tablet" ? "▭" : "📱";
+      if (/^https:\/\//.test(it.image || "")) {
+        im.src = it.image; im.alt = it.device;
+        im.onerror = () => { im.remove(); th.classList.add("noimg"); };
+      } else { im.remove(); th.classList.add("noimg"); }
       const k = c.querySelector(".kind"); k.textContent = KIND[it.kind] || it.kind; k.classList.add(it.kind);
       const ul = c.querySelector(".specs");
       for (const sp of it.specs || []) { const li = document.createElement("li"); li.textContent = sp; ul.appendChild(li); }
