@@ -150,6 +150,18 @@
       "url": "https://iq.labeb.com",
       "found": "2026-11-16",
       "query": "اسعار الموبايلات في العراق اليوم"
+    },
+    {
+      "name": "alisnad.iq",
+      "url": "https://alisnad.iq",
+      "found": "2026-11-16",
+      "query": "متجر موبايلات العراق اونلاين"
+    },
+    {
+      "name": "madar.iq",
+      "url": "https://madar.iq",
+      "found": "2026-11-16",
+      "query": "متجر موبايلات العراق اونلاين"
     }
   ],
   "rejected": []
