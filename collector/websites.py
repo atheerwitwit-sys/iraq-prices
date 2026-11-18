@@ -77,7 +77,7 @@ STORAGE_TXT = re.compile(r"\d{2,4}\s*GB|\d\s*TB|\d{1,2}\s*GB\s*\+\s*\d{2,4}\s*GB
 
 def shopify(base: str):
     out = []
-    for page in range(1, 6):
+    for page in range(1, 21):
         try:
             data = json.loads(fetch(urljoin(base, f"/products.json?limit=250&page={page}")))
         except Exception:
@@ -91,7 +91,8 @@ def shopify(base: str):
             link = urljoin(base, f"/products/{p.get('handle')}")
             seen = set()
             variants = p.get("variants") or [{}]
-            if any("available" in v for v in variants) and any(v.get("available") for v in variants):
+            if any("available" in v for v in variants):
+                # نتجاهل الخيارات الخلصانة (سعرها قديم)
                 variants = [v for v in variants if v.get("available")]
             for v in variants:
                 try:
@@ -137,13 +138,29 @@ def woocommerce(base: str):
     return out
 
 
+def fetch_retry(url: str, tries: int = 5) -> str:
+    """إذا الموقع گال "كافي طلبات" (429) ننتظر ونعيد، بدل ما نوگف."""
+    import time
+    import urllib.error
+    wait = 15
+    for i in range(tries):
+        try:
+            return fetch(url)
+        except urllib.error.HTTPError as e:
+            if e.code not in (429, 502, 503) or i == tries - 1:
+                raise
+            time.sleep(wait)
+            wait *= 2
+    raise RuntimeError("unreachable")
+
+
 def trendmiq(base: str = "https://trendmiq.com"):
     """متجر ترند موبايل: عندهم API عام يرجع كل المنتجات (10 بكل صفحة)."""
     import time
     out, page, total = [], 1, None
     while page <= 200:
         try:
-            data = json.loads(fetch(f"https://api.trendmiq.com/user/products?page={page}&limit=10"))
+            data = json.loads(fetch_retry(f"https://api.trendmiq.com/user/products?page={page}&limit=10"))
         except Exception as e:
             if not out:
                 raise
@@ -165,9 +182,9 @@ def trendmiq(base: str = "https://trendmiq.com"):
             # الجهاز ممكن بيه أكثر من سعة وكل سعة بسعر: نقرا صفحة المنتج
             variants = []
             try:
-                det = json.loads(fetch(f"https://api.trendmiq.com/user/products/{p.get('id')}"))
+                det = json.loads(fetch_retry(f"https://api.trendmiq.com/user/products/{p.get('id')}"))
                 det = det.get("data", det)
-                time.sleep(0.5)
+                time.sleep(1.2)
                 for v in det.get("variants") or []:
                     if not v.get("isActive", True) or not v.get("price"):
                         continue
@@ -189,7 +206,7 @@ def trendmiq(base: str = "https://trendmiq.com"):
         if total and page * 10 >= total:
             break
         page += 1
-        time.sleep(0.7)
+        time.sleep(1.2)
     return out
 
 
