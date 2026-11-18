@@ -66,10 +66,13 @@ def _make_item(title: str, desc: str, amount: float, currency: str, url: str, im
     return Item(
         device=device,
         brand=brand, kind=kind, specs=extract_specs(full, kind),
-        condition=detect_condition(full), price=amount, currency=currency,
+        condition=detect_condition(full) or "جديد", price=amount, currency=currency,
         price_text=f"{amount:,.0f} {currency}" if amount == int(amount) else f"{amount:,.2f} {currency}", line=normalize(title)[:300],
         image=_img(image),
     ), url
+
+
+STORAGE_TXT = re.compile(r"\d{2,4}\s*GB|\d\s*TB|\d{1,2}\s*GB\s*\+\s*\d{2,4}\s*GB", re.I)
 
 
 def shopify(base: str):
@@ -83,16 +86,30 @@ def shopify(base: str):
         if not products:
             break
         for p in products:
-            v = (p.get("variants") or [{}])[0]
-            try:
-                amount = float(v.get("price") or 0)
-            except ValueError:
-                continue
-            r = _make_item(p.get("title", ""), re.sub("<[^>]+>", " ", p.get("body_html") or "")[:300],
-                           amount, _currency("", amount), urljoin(base, f"/products/{p.get('handle')}"),
-                           ((p.get("images") or [{}])[0] or {}).get("src", ""))
-            if r:
-                out.append(r)
+            img = ((p.get("images") or [{}])[0] or {}).get("src", "")
+            desc = re.sub("<[^>]+>", " ", p.get("body_html") or "")[:300]
+            link = urljoin(base, f"/products/{p.get('handle')}")
+            seen = set()
+            variants = p.get("variants") or [{}]
+            if any("available" in v for v in variants) and any(v.get("available") for v in variants):
+                variants = [v for v in variants if v.get("available")]
+            for v in variants:
+                try:
+                    amount = float(v.get("price") or 0)
+                except ValueError:
+                    continue
+                vt = (v.get("title") or "").strip()
+                vt = "" if vt.lower() in ("default title", "default") else vt
+                # كل سعة بسعرها (256 / 512 / 1TB)، الألوان بنفس السعر تنحسب وحدة
+                st = STORAGE_TXT.findall(vt)
+                key = (tuple(st) or vt, amount)
+                if key in seen:
+                    continue
+                seen.add(key)
+                r = _make_item(f"{p.get('title', '')} {' '.join(st) if st else ''}".strip(), desc,
+                               amount, _currency("", amount), link, img)
+                if r:
+                    out.append(r)
     return out
 
 
@@ -141,8 +158,33 @@ def trendmiq(base: str = "https://trendmiq.com"):
             cat = (p.get("category") or {}).get("name", "")
             key = (p.get("preview") or {}).get("key")
             img = f"https://nbg1.your-objectstorage.com/trend/{key}" if key else ""
-            r = _make_item(p.get("title", ""), cat, amount, "IQD", f"https://trendmiq.com/products/{p.get('id')}", img)
-            if r:
+            link = f"https://trendmiq.com/products/{p.get('id')}"
+            r = _make_item(p.get("title", ""), cat, amount, "IQD", link, img)
+            if not r:
+                continue
+            # الجهاز ممكن بيه أكثر من سعة وكل سعة بسعر: نقرا صفحة المنتج
+            variants = []
+            try:
+                det = json.loads(fetch(f"https://api.trendmiq.com/user/products/{p.get('id')}"))
+                det = det.get("data", det)
+                time.sleep(0.5)
+                for v in det.get("variants") or []:
+                    if not v.get("isActive", True) or not v.get("price"):
+                        continue
+                    vals = [((x.get("variantValue") or {}).get("value") or "") for x in v.get("values") or []]
+                    st = [m for val in vals for m in STORAGE_TXT.findall(val)]
+                    variants.append((float(v["price"]), " ".join(st)))
+            except Exception:
+                variants = []
+            seen = set()
+            for vprice, st in variants:
+                if (st, vprice) in seen:
+                    continue
+                seen.add((st, vprice))
+                rv = _make_item(f"{p.get('title', '')} {st}".strip(), cat, vprice, "IQD", link, img)
+                if rv:
+                    out.append(rv)
+            if not seen:
                 out.append(r)
         if total and page * 10 >= total:
             break
